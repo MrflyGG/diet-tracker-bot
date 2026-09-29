@@ -6,7 +6,7 @@
 |---|---|
 | GitHub | MrflyGG |
 | Vercel | 待確認（連結 MrflyGG GitHub）|
-| Supabase | 待確認 |
+| Supabase | MrflyGG's Org（project: diet-tracker-bot，ref: cjzhufsmudltwbxgicxn）|
 | Telegram | 使用者本人帳號 |
 | Anthropic | 待申請 API Key |
 | Upstash | 待建立 |

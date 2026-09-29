@@ -55,3 +55,24 @@ export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
 }
+
+export async function createBindToken() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '未登入' }
+
+  // 清除舊的 token
+  await supabase.from('telegram_bind_tokens').delete().eq('user_id', user.id)
+
+  const token = Math.random().toString(36).slice(2, 10).toUpperCase()
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+
+  const { error } = await supabase.from('telegram_bind_tokens').insert({
+    token,
+    user_id: user.id,
+    expires_at: expiresAt,
+  })
+
+  if (error) return { error: error.message }
+  return { token, botUsername: process.env.TELEGRAM_BOT_USERNAME }
+}

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { saveProfile, saveReminders, signOut } from './actions'
+import { saveProfile, saveReminders, signOut, createBindToken } from './actions'
 
 const REMINDER_TYPES = [
   { type: 'weight', label: '⚖️ 早晨體重', defaultTime: '07:00' },
@@ -14,6 +14,7 @@ const REMINDER_TYPES = [
 
 type Profile = Record<string, string | number | null> | null
 type ReminderRow = { reminder_type: string; enabled: boolean; time_hhmm: string }
+type TelegramLink = { telegram_username: string | null } | null
 
 function getReminderDefault(reminders: ReminderRow[], type: string, defaultTime: string) {
   const found = reminders.find(r => r.reminder_type === type)
@@ -24,15 +25,18 @@ export default function SettingsForm({
   email,
   profile,
   reminders,
+  telegramLink,
 }: {
   email: string
   profile: Profile
   reminders: ReminderRow[]
+  telegramLink: TelegramLink
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [bindState, setBindState] = useState<'idle' | 'loading' | 'opened'>('idle')
 
   const [reminderState, setReminderState] = useState(
     REMINDER_TYPES.map(rt => ({
@@ -67,6 +71,21 @@ export default function SettingsForm({
     router.refresh()
   }
 
+  const handleBind = async () => {
+    setBindState('loading')
+    setError('')
+    const result = await createBindToken()
+    if ('error' in result && result.error) {
+      setError(result.error)
+      setBindState('idle')
+      return
+    }
+    if ('token' in result && result.token && result.botUsername) {
+      window.open(`https://t.me/${result.botUsername}?start=${result.token}`, '_blank')
+      setBindState('opened')
+    }
+  }
+
   const p = profile as Record<string, string | number | null> | null
 
   return (
@@ -86,9 +105,33 @@ export default function SettingsForm({
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">帳號</h2>
           <p className="text-gray-700 text-sm">{email}</p>
-          <div className="mt-3 p-3 bg-blue-50 rounded-xl text-sm text-blue-700">
-            <p className="font-medium mb-1">📱 Telegram 綁定</p>
-            <p>開啟 Telegram，搜尋 <span className="font-mono font-bold">@diettracker_mrfly_bot</span>，發送 <span className="font-mono">/start</span> 開始綁定。</p>
+          <div className="mt-3 p-3 bg-blue-50 rounded-xl text-sm">
+            <p className="font-medium text-blue-800 mb-2">📱 Telegram 綁定</p>
+            {telegramLink ? (
+              <p className="text-green-700 font-medium">
+                ✅ 已綁定{telegramLink.telegram_username ? ` @${telegramLink.telegram_username}` : ''}
+              </p>
+            ) : bindState === 'opened' ? (
+              <div className="space-y-2">
+                <p className="text-blue-700">Telegram 已開啟，完成綁定後點下方按鈕確認</p>
+                <button
+                  type="button"
+                  onClick={() => router.refresh()}
+                  className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-lg"
+                >
+                  重新整理確認
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleBind}
+                disabled={bindState === 'loading'}
+                className="bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              >
+                {bindState === 'loading' ? '產生中...' : '綁定 Telegram'}
+              </button>
+            )}
           </div>
         </div>
 

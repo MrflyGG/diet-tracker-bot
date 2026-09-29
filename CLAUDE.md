@@ -71,9 +71,9 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 
 | Phase | 內容 | 狀態 |
 |---|---|---|
-| 0 | 骨架 + GitHub + Vercel 首次部署 | 進行中 |
-| 1 | Email 登入 + Web 設定頁 | 待開始 |
-| 2 | Telegram Bot 串通 + 帳號綁定 | 待開始 |
+| 0 | 骨架 + GitHub + Vercel 首次部署 | ✅ |
+| 1 | Email 登入 + Web 設定頁 + DB schema | ✅ |
+| 2 | Telegram Bot 串通 + 帳號綁定 | 進行中（待 deploy + webhook 設定）|
 | 3 | Claude AI 串接（辨識 + 建議）| 待開始 |
 | 4 | 提醒系統（Upstash QStash）| 待開始 |
 | 5 | 每日總結 + InBody 解讀 | 待開始 |

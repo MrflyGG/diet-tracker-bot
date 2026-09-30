@@ -1,9 +1,14 @@
-// v1.3.0 | 2026-09-30 | add water logging to water_entries
+// v1.4.0 | 2026-09-30 | add weight / exercise / meal-correction / water in query
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendMessage, getFileUrl } from '@/lib/telegram'
-import { analyzeFood, isWaterEntry, extractWaterMl } from '@/lib/claude'
+import {
+  analyzeFood, isWaterEntry, extractWaterMl,
+  isWeightEntry, extractWeightKg,
+  isExerciseEntry, analyzeExercise,
+  isMealCorrection, extractMealTypeFromCorrection,
+} from '@/lib/claude'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '下午點心', midnight: '宵夜',
@@ -128,21 +133,21 @@ export async function POST(req: NextRequest) {
 
   // 查詢今日累計
   if (text && isQuery(text) && !photo) {
-    const { data: entries } = await supabase
-      .from('food_entries')
-      .select('meal_type, food_name, calories, protein_g, carbs_g, fat_g')
-      .eq('user_id', userId)
-      .eq('log_date', today)
-      .order('created_at')
+    const [{ data: entries }, { data: waterRows }, { data: profile }] = await Promise.all([
+      supabase.from('food_entries')
+        .select('meal_type, food_name, calories, protein_g, carbs_g, fat_g')
+        .eq('user_id', userId).eq('log_date', today).order('created_at'),
+      supabase.from('water_entries')
+        .select('amount_ml').eq('user_id', userId).eq('log_date', today),
+      supabase.from('user_profiles')
+        .select('daily_calories, daily_protein_g').eq('id', userId).maybeSingle(),
+    ])
 
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('daily_calories, daily_protein_g')
-      .eq('id', userId)
-      .maybeSingle()
+    const totalWater = waterRows?.reduce((s, r) => s + (r.amount_ml ?? 0), 0) ?? 0
 
     if (!entries || entries.length === 0) {
-      await sendMessage(chatId, `📊 今天（${today}）還沒有飲食紀錄。\n\n傳食物照片或文字開始記錄吧！`)
+      const waterLine = totalWater > 0 ? `\n\n💧 喝水：${totalWater} ml` : ''
+      await sendMessage(chatId, `📊 今天（${today}）還沒有飲食紀錄。${waterLine}\n\n傳食物照片或文字開始記錄吧！`)
       return NextResponse.json({ ok: true })
     }
 
@@ -159,7 +164,7 @@ export async function POST(req: NextRequest) {
       `${MEAL_ICONS[e.meal_type ?? ''] ?? '🍽'} ${MEAL_LABELS[e.meal_type ?? ''] ?? ''} ${e.food_name} — ${Math.round(e.calories ?? 0)} kcal`
     )
 
-    const reply = `📊 <b>今日飲食紀錄（${today}）</b>\n\n${lines.join('\n')}\n\n📈 <b>今日累計</b>\n熱量：${totalCal} / ${targetCal} kcal（${calPct}%）\n蛋白質：${totalPro}g / ${targetPro}g（${proPct}%）\n碳水：${totalCarb}g｜脂肪：${totalFat}g`
+    const reply = `📊 <b>今日飲食紀錄（${today}）</b>\n\n${lines.join('\n')}\n\n📈 <b>今日累計</b>\n熱量：${totalCal} / ${targetCal} kcal（${calPct}%）\n蛋白質：${totalPro}g / ${targetPro}g（${proPct}%）\n碳水：${totalCarb}g｜脂肪：${totalFat}g\n💧 喝水：${totalWater} ml`
 
     await sendMessage(chatId, reply)
     return NextResponse.json({ ok: true })
@@ -197,6 +202,108 @@ export async function POST(req: NextRequest) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[DB] water_entries insert error:', msg)
       await sendMessage(chatId, `⚠️ 喝水記錄失敗，請稍後再試。\n\n${msg}`)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  // 體重記錄
+  if (text && isWeightEntry(text) && !photo) {
+    const kg = extractWeightKg(text)
+    if (!kg || kg < 20 || kg > 300) {
+      await sendMessage(chatId, '⚖️ 請輸入體重數字，例如：「體重 75.5」或「量體重 68kg」。')
+      return NextResponse.json({ ok: true })
+    }
+
+    const yesterday = new Date(Date.now() + 8 * 3600000 - 86400000).toISOString().slice(0, 10)
+    const { data: prevLog } = await supabase
+      .from('daily_logs').select('weight_kg').eq('user_id', userId).eq('log_date', yesterday).maybeSingle()
+
+    const { error: dbErr } = await supabase.from('daily_logs').upsert(
+      { user_id: userId, log_date: today, weight_kg: kg },
+      { onConflict: 'user_id,log_date' }
+    )
+
+    if (dbErr) {
+      console.error('[DB] daily_logs upsert error:', dbErr.message)
+      await sendMessage(chatId, `⚠️ 體重記錄失敗，請稍後再試。`)
+      return NextResponse.json({ ok: true })
+    }
+
+    let diffLine = ''
+    if (prevLog?.weight_kg) {
+      const diff = Math.round((kg - prevLog.weight_kg) * 10) / 10
+      diffLine = diff > 0 ? `\n較昨日：+${diff} kg` : diff < 0 ? `\n較昨日：${diff} kg` : '\n較昨日：持平'
+    }
+
+    await sendMessage(chatId, `⚖️ 體重記錄成功！\n\n今日體重：${kg} kg${diffLine}`)
+    return NextResponse.json({ ok: true })
+  }
+
+  // 餐別修正
+  if (text && isMealCorrection(text) && !photo) {
+    const newMealType = extractMealTypeFromCorrection(text)
+    if (!newMealType) {
+      await sendMessage(chatId, '🤔 請說明要改成哪一餐（早餐、午餐、晚餐、點心或宵夜）。')
+      return NextResponse.json({ ok: true })
+    }
+
+    const { data: latest } = await supabase
+      .from('food_entries').select('id, food_name, meal_type')
+      .eq('user_id', userId).eq('log_date', today)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+
+    if (!latest) {
+      await sendMessage(chatId, '🤔 今天還沒有飲食記錄，無法修正。')
+      return NextResponse.json({ ok: true })
+    }
+
+    const { error: dbErr } = await supabase
+      .from('food_entries').update({ meal_type: newMealType }).eq('id', latest.id)
+
+    if (dbErr) {
+      console.error('[DB] food_entries update error:', dbErr.message)
+      await sendMessage(chatId, `⚠️ 修正失敗，請稍後再試。`)
+      return NextResponse.json({ ok: true })
+    }
+
+    const oldLabel = MEAL_LABELS[latest.meal_type ?? ''] ?? latest.meal_type
+    const newLabel = MEAL_LABELS[newMealType] ?? newMealType
+    await sendMessage(chatId, `✅ 已將「${latest.food_name}」從 ${oldLabel} 改為 ${newLabel}。`)
+    return NextResponse.json({ ok: true })
+  }
+
+  // 運動記錄
+  if (text && isExerciseEntry(text) && !photo) {
+    try {
+      const { data: profile } = await supabase
+        .from('user_profiles').select('gender, age, height_cm').eq('id', userId).maybeSingle()
+
+      const analysis = await analyzeExercise(text, profile ?? {})
+
+      const { error: dbErr } = await supabase.from('exercise_entries').insert({
+        user_id: userId,
+        log_date: today,
+        exercise_name: analysis.exercise_name,
+        duration_min: analysis.duration_min,
+        intensity: analysis.intensity,
+        calories_burned: analysis.calories_burned,
+      })
+
+      if (dbErr) throw new Error(dbErr.message)
+
+      const intensityLabel: Record<string, string> = {
+        light: '輕度', moderate: '中度', hard: '高強度', very_hard: '極高強度',
+      }
+
+      await sendMessage(chatId, `🏃 運動記錄成功！\n\n🏋️ ${analysis.exercise_name}\n⏱ ${analysis.duration_min} 分鐘｜${intensityLabel[analysis.intensity] ?? analysis.intensity}\n🔥 消耗約 ${analysis.calories_burned} kcal`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[AI] analyzeExercise error:', msg)
+      if (msg === '無法辨識') {
+        await sendMessage(chatId, '🤔 無法辨識運動內容，請補充說明（例如：「跑步 30 分鐘」）。')
+      } else {
+        await sendMessage(chatId, `⚠️ 運動記錄失敗，請稍後再試。`)
+      }
     }
     return NextResponse.json({ ok: true })
   }

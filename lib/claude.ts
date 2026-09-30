@@ -1,4 +1,4 @@
-// v1.1.0 | 2026-09-30 | add water intent detection + extractWaterMl
+// v1.2.0 | 2026-09-30 | add exercise analysis + weight/exercise/correction detectors
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -107,6 +107,84 @@ export async function analyzeFood(
 
   return { ...parsed, meal_type: mealType } as FoodAnalysis
 }
+
+// ─── Exercise ───────────────────────────────────────────────────────────────
+
+export interface ExerciseAnalysis {
+  exercise_name: string
+  duration_min: number
+  intensity: 'light' | 'moderate' | 'hard' | 'very_hard'
+  calories_burned: number
+}
+
+export function isExerciseEntry(text: string): boolean {
+  return /跑步|慢跑|快走|健身|重訓|游泳|騎車|騎腳踏車|瑜伽|有氧|HIIT|球|爬山|走路\d|散步\d|運動了|去健身|做了.*運動|練.*分鐘|訓練.*分鐘/.test(text)
+}
+
+export async function analyzeExercise(text: string, userCtx: UserContext): Promise<ExerciseAnalysis> {
+  const system = `你是運動分析 AI。根據用戶描述估算運動消耗熱量。
+
+用戶資料：性別 ${userCtx.gender ?? '未知'}、${userCtx.age ?? '?'}歲
+體重估算：${userCtx.height_cm ? Math.round((userCtx.height_cm - 100) * 0.9) : 70} kg
+
+intensity 定義：light=散步/伸展、moderate=快走/慢跑/游泳、hard=跑步/重訓/球類、very_hard=HIIT/競技
+若訊息未說明時間，預設 30 分鐘。
+
+以純 JSON 回覆，不加 markdown：
+{"exercise_name":"運動名稱","duration_min":數字,"intensity":"light|moderate|hard|very_hard","calories_burned":數字}
+無法辨識則回覆：{"error":"無法辨識"}`
+
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 128,
+    system,
+    messages: [{ role: 'user', content: text }],
+  })
+
+  const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+  const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(jsonStr)
+  } catch {
+    console.error('[AI] Non-JSON exercise response:', raw.slice(0, 200))
+    throw new Error('無法辨識')
+  }
+
+  if (parsed.error) throw new Error(String(parsed.error))
+  return parsed as unknown as ExerciseAnalysis
+}
+
+// ─── Weight ──────────────────────────────────────────────────────────────────
+
+export function isWeightEntry(text: string): boolean {
+  return /體重|量體重/.test(text) && /\d+(\.\d+)?/.test(text)
+}
+
+export function extractWeightKg(text: string): number | null {
+  const after = text.match(/(?:體重|量體重)[^\d]*(\d+(?:\.\d+)?)/)
+  if (after) return parseFloat(after[1])
+  const any = text.match(/(\d+(?:\.\d+)?)\s*(?:kg|公斤)/)
+  return any ? parseFloat(any[1]) : null
+}
+
+// ─── Meal correction ─────────────────────────────────────────────────────────
+
+export function isMealCorrection(text: string): boolean {
+  return /(剛剛|上一筆|那個|最後一筆|那餐).*(是|改|算|變|要改).*(早餐|午餐|晚餐|點心|宵夜)|(早餐|午餐|晚餐|點心|宵夜).*(剛剛|上一筆|那個)/.test(text)
+}
+
+export function extractMealTypeFromCorrection(text: string): string | null {
+  if (/早餐/.test(text)) return 'breakfast'
+  if (/午餐/.test(text)) return 'lunch'
+  if (/晚餐/.test(text)) return 'dinner'
+  if (/點心|下午茶/.test(text)) return 'snack'
+  if (/宵夜/.test(text)) return 'midnight'
+  return null
+}
+
+// ─── Water ───────────────────────────────────────────────────────────────────
 
 export function isWaterEntry(text: string): boolean {
   return /喝水|補水|飲水|喝了.{0,10}水|水.{0,5}(ml|毫升|杯|瓶|cc)|(\d+)\s*(ml|毫升).{0,5}水/.test(text)

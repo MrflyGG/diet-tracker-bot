@@ -45,6 +45,12 @@ export default function SettingsForm({
   const p = profile as Record<string, string | number | null> | null
   const ib = latestInBody as Record<string, number | string | null> | null
 
+  // 個人資料（controlled，避免 iOS defaultValue 灰字問題）
+  const [gender, setGender]     = useState<string>(p?.gender != null ? String(p.gender) : '')
+  const [age, setAge]           = useState<string>(p?.age != null ? String(p.age) : '')
+  const [heightCm, setHeightCm] = useState<string>(p?.height_cm != null ? String(p.height_cm) : '')
+  const [goal, setGoal]         = useState<string>(p?.goal != null ? String(p.goal) : 'cut')
+
   // 目標設定
   const [goalFatLoss, setGoalFatLoss] = useState<string>(p?.goal_fat_loss_kg != null ? String(p.goal_fat_loss_kg) : '')
   const [goalDeadline, setGoalDeadline] = useState<string>(p?.goal_deadline ? String(p.goal_deadline) : '')
@@ -81,7 +87,11 @@ export default function SettingsForm({
     setError('')
     setSaved(false)
     const formData = new FormData(e.currentTarget)
-    // inject state-controlled values
+    // inject all state-controlled values
+    formData.set('gender', gender)
+    formData.set('age', age)
+    formData.set('height_cm', heightCm)
+    formData.set('goal', goal)
     formData.set('daily_calories', dailyCalories)
     formData.set('daily_protein_g', dailyProtein)
     formData.set('daily_carbs_g', dailyCarbs)
@@ -193,7 +203,7 @@ export default function SettingsForm({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">性別</label>
-              <select name="gender" defaultValue={p?.gender as string ?? ''} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
+              <select value={gender} onChange={e => setGender(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
                 <option value="">未設定</option>
                 <option value="male">男</option>
                 <option value="female">女</option>
@@ -202,15 +212,15 @@ export default function SettingsForm({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">年齡</label>
-              <input type="number" name="age" defaultValue={p?.age as number ?? ''} placeholder="25" min="10" max="100" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <input type="number" value={age} onChange={e => setAge(e.target.value)} placeholder="25" min="10" max="100" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">身高 (cm)</label>
-              <input type="number" name="height_cm" defaultValue={p?.height_cm as number ?? ''} placeholder="170" min="100" max="250" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <input type="number" value={heightCm} onChange={e => setHeightCm(e.target.value)} placeholder="170" min="100" max="250" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">目標類型</label>
-              <select name="goal" defaultValue={p?.goal as string ?? 'cut'} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
+              <select value={goal} onChange={e => setGoal(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
                 <option value="cut">減脂</option>
                 <option value="maintain">維持</option>
                 <option value="bulk">增肌</option>

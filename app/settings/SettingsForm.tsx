@@ -203,7 +203,7 @@ export default function SettingsForm({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">性別</label>
-              <select value={gender} onChange={e => setGender(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
+              <select value={gender} onChange={e => setGender(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-900">
                 <option value="">未設定</option>
                 <option value="male">男</option>
                 <option value="female">女</option>
@@ -212,15 +212,15 @@ export default function SettingsForm({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">年齡</label>
-              <input type="number" value={age} onChange={e => setAge(e.target.value)} placeholder="25" min="10" max="100" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <input type="number" value={age} onChange={e => setAge(e.target.value)} placeholder="25" min="10" max="100" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-900" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">身高 (cm)</label>
-              <input type="number" value={heightCm} onChange={e => setHeightCm(e.target.value)} placeholder="170" min="100" max="250" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <input type="number" value={heightCm} onChange={e => setHeightCm(e.target.value)} placeholder="170" min="100" max="250" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-900" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">目標類型</label>
-              <select value={goal} onChange={e => setGoal(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400">
+              <select value={goal} onChange={e => setGoal(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-900">
                 <option value="cut">減脂</option>
                 <option value="maintain">維持</option>
                 <option value="bulk">增肌</option>
@@ -238,12 +238,12 @@ export default function SettingsForm({
               <label className="block text-sm font-medium text-gray-700 mb-1">目標減脂量 (kg)</label>
               <input type="number" value={goalFatLoss} onChange={e => { setGoalFatLoss(e.target.value); setAiCalced(false) }}
                 placeholder="6.8" step="0.1" min="0.5" max="50"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-900" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">截止日期</label>
               <input type="date" value={goalDeadline} onChange={e => { setGoalDeadline(e.target.value); setAiCalced(false) }}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-900" />
             </div>
           </div>
           <button type="button" onClick={handleCalcGoals} disabled={!canCalcGoals}

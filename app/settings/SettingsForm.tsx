@@ -184,6 +184,7 @@ export default function SettingsForm({
               { name: 'daily_carbs_g', label: '🍚 碳水 (g)', placeholder: '200' },
               { name: 'daily_fat_g', label: '🥑 脂肪 (g)', placeholder: '65' },
               { name: 'daily_fiber_g', label: '🌿 纖維 (g)', placeholder: '25' },
+              { name: 'daily_water_ml', label: '💧 喝水目標 (ml)', placeholder: '2000' },
             ].map(field => (
               <div key={field.name}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>

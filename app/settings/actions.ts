@@ -19,6 +19,7 @@ export async function saveProfile(formData: FormData) {
     daily_carbs_g: formData.get('daily_carbs_g') ? Number(formData.get('daily_carbs_g')) : null,
     daily_fat_g: formData.get('daily_fat_g') ? Number(formData.get('daily_fat_g')) : null,
     daily_fiber_g: formData.get('daily_fiber_g') ? Number(formData.get('daily_fiber_g')) : null,
+    daily_water_ml: formData.get('daily_water_ml') ? Number(formData.get('daily_water_ml')) : 2000,
     timezone: 'Asia/Taipei',
     updated_at: new Date().toISOString(),
   }

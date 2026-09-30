@@ -91,13 +91,13 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
     alreadyRecorded = !!data
   } else if (reminder_type === 'water') {
-    const { data } = await supabase
-      .from('water_entries')
-      .select('amount_ml')
-      .eq('user_id', user_id)
-      .eq('log_date', today)
-    const total = data?.reduce((s, r) => s + (r.amount_ml ?? 0), 0) ?? 0
-    alreadyRecorded = total >= 500
+    const [{ data: waterData }, { data: profileData }] = await Promise.all([
+      supabase.from('water_entries').select('amount_ml').eq('user_id', user_id).eq('log_date', today),
+      supabase.from('user_profiles').select('daily_water_ml').eq('id', user_id).maybeSingle(),
+    ])
+    const total = waterData?.reduce((s, r) => s + (r.amount_ml ?? 0), 0) ?? 0
+    const goal = profileData?.daily_water_ml ?? 2000
+    alreadyRecorded = total >= goal
   }
   // weight: 永遠發送（體重記錄功能尚未實作）
 

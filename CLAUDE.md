@@ -5,10 +5,10 @@
 | 服務 | 帳號 |
 |---|---|
 | GitHub | MrflyGG |
-| Vercel | 待確認（連結 MrflyGG GitHub）|
+| Vercel | mrflygg（連結 MrflyGG GitHub）— 域名：diet-tracker-bot-nine.vercel.app |
 | Supabase | MrflyGG's Org（project: diet-tracker-bot，ref: cjzhufsmudltwbxgicxn）|
 | Telegram | 使用者本人帳號 |
-| Anthropic | 待申請 API Key |
+| Anthropic | goffly.hou@gmail.com（API key 已設定）|
 | Upstash | 待建立 |
 
 ## 專案概要
@@ -33,27 +33,34 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 ```
 飲食控制APP/
 ├── CLAUDE.md
+├── middleware.ts              ← Auth 守衛（排除 /api/ 路由）
 ├── app/
 │   ├── layout.tsx
 │   ├── page.tsx               ← 首頁（導向登入或設定）
 │   ├── login/page.tsx
-│   ├── settings/page.tsx      ← 個人資料、目標、提醒時間
+│   ├── settings/
+│   │   ├── page.tsx           ← 個人資料、目標、提醒時間
+│   │   ├── SettingsForm.tsx   ← 含 Telegram 綁定 UI
+│   │   └── actions.ts         ← saveProfile / saveReminders / createBindToken
 │   └── api/
-│       ├── telegram/route.ts  ← Telegram Webhook
-│       ├── auth/route.ts
-│       └── cron/route.ts      ← Upstash QStash 觸發點
-├── components/
+│       ├── telegram/route.ts  ← Telegram Webhook（POST only）
+│       ├── auth/callback/route.ts
+│       └── cron/route.ts      ← Upstash QStash 觸發點（待實作）
 ├── lib/
-│   ├── supabase.ts
-│   ├── claude.ts              ← Anthropic SDK 封裝
-│   └── telegram.ts            ← Telegram Bot API 封裝
+│   ├── supabase/
+│   │   ├── client.ts          ← 瀏覽器端 client
+│   │   ├── server.ts          ← Server Component client
+│   │   └── admin.ts           ← Service role client（bypass RLS）
+│   └── telegram.ts            ← sendMessage / setWebhook
 ├── supabase/
 │   └── migrations/
+│       ├── 001_init.sql       ← 7 張主表 + RLS
+│       └── 002_bind_tokens.sql ← telegram_bind_tokens
 └── docs/
     └── SCHEMA.md
 ```
 
-## 資料庫 Schema（7 張表）
+## 資料庫 Schema（7 張主表 + 1 輔助表）
 
 詳見 `docs/SCHEMA.md`。
 
@@ -61,6 +68,7 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 |---|---|
 | `user_profiles` | 個人資料、每日目標 |
 | `telegram_links` | Telegram ID ↔ 帳號綁定 |
+| `telegram_bind_tokens` | 綁定暫存 token（15 分鐘 TTL）|
 | `reminder_settings` | 每種提醒的時間與開關 |
 | `daily_logs` | 每天一筆（體重、睡眠、總結）|
 | `food_entries` | 每筆飲食記錄 |
@@ -73,7 +81,7 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 |---|---|---|
 | 0 | 骨架 + GitHub + Vercel 首次部署 | ✅ |
 | 1 | Email 登入 + Web 設定頁 + DB schema | ✅ |
-| 2 | Telegram Bot 串通 + 帳號綁定 | 進行中（待 deploy + webhook 設定）|
+| 2 | Telegram Bot 串通 + 帳號綁定 | ✅ |
 | 3 | Claude AI 串接（辨識 + 建議）| 待開始 |
 | 4 | 提醒系統（Upstash QStash）| 待開始 |
 | 5 | 每日總結 + InBody 解讀 | 待開始 |
@@ -111,14 +119,18 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 | 結構化存資料庫 | 省 token、可畫圖表、查詢快 | 存原始對話 log |
 | Upstash QStash 排程 | Vercel Hobby 只有 1 個 Cron slot | Vercel Cron |
 | 共用 API Key | 個人用量免費額度夠 | BYOK |
+| middleware 排除 /api/ | Telegram webhook 是 server-to-server，無 session cookie | 個別路由加驗證 |
 
 ## 已知地雷 ⚠️
 
-- Vercel Hobby cron 只有 1 個 slot，提醒系統必須走 Upstash QStash
+- **middleware 必須排除 `/api/`**：Telegram webhook 沒有 session cookie，若 middleware 攔截會永遠 307 到 `/login`，綁定靜默失敗
+- **Vercel 域名**：deploy 後實際域名是 `diet-tracker-bot-nine.vercel.app`，非 `diet-tracker-bot.vercel.app`（後者 404）
+- **Vercel Hobby cron** 只有 1 個 slot，提醒系統必須走 Upstash QStash
 - 凌晨訊息需確認是否跨日
 - Telegram Webhook 需要 HTTPS，本機開發用 ngrok
+- Supabase `telegram_links` upsert 衝突鍵是 `telegram_user_id`，同一 Telegram 帳號重新綁定會覆蓋舊的 `user_id`
 
 ## 當前狀態
 
-- 正在做：Phase 0 — 建 GitHub repo、初始化 Next.js
-- 下一步：Phase 1 — Email 登入 + Web 設定頁
+- 正在做：Phase 2 完成，等使用者完成真實 Telegram 帳號綁定驗收
+- 下一步：Phase 3 — Claude AI 串接（食物辨識 + 下一餐建議）

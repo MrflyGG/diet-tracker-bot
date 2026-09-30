@@ -1,9 +1,9 @@
-// v1.2.0 | 2026-09-30 | add today's summary query handler
+// v1.3.0 | 2026-09-30 | add water logging to water_entries
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendMessage, getFileUrl } from '@/lib/telegram'
-import { analyzeFood } from '@/lib/claude'
+import { analyzeFood, isWaterEntry, extractWaterMl } from '@/lib/claude'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '下午點心', midnight: '宵夜',
@@ -162,6 +162,42 @@ export async function POST(req: NextRequest) {
     const reply = `📊 <b>今日飲食紀錄（${today}）</b>\n\n${lines.join('\n')}\n\n📈 <b>今日累計</b>\n熱量：${totalCal} / ${targetCal} kcal（${calPct}%）\n蛋白質：${totalPro}g / ${targetPro}g（${proPct}%）\n碳水：${totalCarb}g｜脂肪：${totalFat}g`
 
     await sendMessage(chatId, reply)
+    return NextResponse.json({ ok: true })
+  }
+
+  // 喝水記錄
+  if (text && isWaterEntry(text) && !photo) {
+    try {
+      const ml = await extractWaterMl(text)
+      if (ml <= 0) {
+        await sendMessage(chatId, '💧 請說明喝了多少水，例如：「喝水 500ml」或「喝了兩杯水」。')
+        return NextResponse.json({ ok: true })
+      }
+
+      const { error: dbErr } = await supabase.from('water_entries').insert({
+        user_id: userId,
+        log_date: today,
+        amount_ml: ml,
+      })
+
+      if (dbErr) throw new Error(dbErr.message)
+
+      // 今日喝水總量
+      const { data: waterRows } = await supabase
+        .from('water_entries')
+        .select('amount_ml')
+        .eq('user_id', userId)
+        .eq('log_date', today)
+
+      const totalMl = (waterRows?.reduce((s, r) => s + (r.amount_ml ?? 0), 0) ?? 0)
+      const cups = Math.round(totalMl / 250)
+
+      await sendMessage(chatId, `💧 喝水記錄成功！+${ml} ml\n\n今日累計：${totalMl} ml（約 ${cups} 杯）\n\n建議每日飲水 2000ml 以上。`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[DB] water_entries insert error:', msg)
+      await sendMessage(chatId, `⚠️ 喝水記錄失敗，請稍後再試。\n\n${msg}`)
+    }
     return NextResponse.json({ ok: true })
   }
 

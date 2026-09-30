@@ -1,4 +1,4 @@
-// v1.0.2 | 2026-09-30 | fix: text-only input must return JSON, no photo required
+// v1.1.0 | 2026-09-30 | add water intent detection + extractWaterMl
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -106,4 +106,25 @@ export async function analyzeFood(
   if (parsed.error) throw new Error(String(parsed.error))
 
   return { ...parsed, meal_type: mealType } as FoodAnalysis
+}
+
+export function isWaterEntry(text: string): boolean {
+  return /喝水|補水|飲水|喝了.{0,10}水|水.{0,5}(ml|毫升|杯|瓶|cc)|(\d+)\s*(ml|毫升).{0,5}水/.test(text)
+}
+
+export async function extractWaterMl(text: string): Promise<number> {
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 32,
+    messages: [{
+      role: 'user',
+      content: `從以下訊息計算總喝水量（單位 ml），只回覆數字。
+換算參考：1杯≈250ml、1瓶≈500ml、1cc=1ml。若有倍數（例如「兩次800ml」）請相乘。
+若無法判斷回覆 0。
+訊息：${text}`,
+    }],
+  })
+  const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '0'
+  const ml = parseInt(raw.replace(/[^\d]/g, ''), 10)
+  return isNaN(ml) ? 0 : ml
 }

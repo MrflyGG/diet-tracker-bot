@@ -272,7 +272,7 @@ export default function SettingsForm({
                 <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
                 <input type="number" value={f.val} onChange={e => { f.set(e.target.value); setAiCalced(false) }}
                   placeholder={f.ph} min="0"
-                  className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 ${aiCalced ? 'border-blue-200 bg-blue-50' : 'border-gray-200'}`} />
+                  className={`w-full border rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-400 ${aiCalced ? 'border-blue-200 bg-blue-50' : 'border-gray-200'}`} />
               </div>
             ))}
           </div>
@@ -292,7 +292,7 @@ export default function SettingsForm({
               <input type="time" value={r.time}
                 onChange={e => setReminderState(prev => prev.map((item, idx) => idx === i ? { ...item, time: e.target.value } : item))}
                 disabled={!r.enabled}
-                className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-40" />
+                className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-40" />
             </div>
           ))}
         </div>

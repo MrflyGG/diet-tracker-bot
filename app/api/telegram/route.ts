@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     } else {
       await sendMessage(
         chatId,
-        '👋 哈囉！我是飲食追蹤小幫手 🥗\n\n請先到設定頁完成帳號綁定：\n➡️ https://diet-tracker-bot.vercel.app/settings'
+        '👋 哈囉！我是飲食追蹤小幫手 🥗\n\n請先到設定頁完成帳號綁定：\n➡️ https://diet-tracker-bot-nine.vercel.app/settings'
       )
     }
     return NextResponse.json({ ok: true })
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   if (!link) {
     await sendMessage(
       chatId,
-      '請先完成帳號綁定 👆\n\n➡️ https://diet-tracker-bot.vercel.app/settings'
+      '請先完成帳號綁定 👆\n\n➡️ https://diet-tracker-bot-nine.vercel.app/settings'
     )
   } else {
     await sendMessage(chatId, '🚧 功能開發中，敬請期待！\n\n傳送 /help 查看說明。')

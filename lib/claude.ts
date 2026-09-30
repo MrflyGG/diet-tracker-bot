@@ -1,4 +1,4 @@
-// v1.0.0 | 2026-09-30 | Claude AI food analysis
+// v1.0.1 | 2026-09-30 | strip markdown code fences before JSON.parse
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -89,7 +89,8 @@ export async function analyzeFood(
   })
 
   const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
-  const parsed = JSON.parse(raw)
+  const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  const parsed = JSON.parse(jsonStr)
 
   if (parsed.error) throw new Error(parsed.error)
 

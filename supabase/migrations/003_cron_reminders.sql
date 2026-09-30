@@ -1,0 +1,28 @@
+-- Enable pg_net for HTTP requests from PostgreSQL (used by pg_cron)
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+
+-- Note: pg_cron job is created separately (contains CRON_SECRET, not committed to git)
+-- Run the following in Supabase SQL Editor after setting CRON_SECRET in Vercel env:
+--
+-- SELECT cron.schedule(
+--   'diet-reminders',
+--   '* * * * *',
+--   $$
+--   SELECT extensions.http_post(
+--     url     := 'https://diet-tracker-bot-nine.vercel.app/api/cron',
+--     headers := json_build_object(
+--       'Content-Type', 'application/json',
+--       'x-cron-secret', '<YOUR_CRON_SECRET>'
+--     )::jsonb,
+--     body    := json_build_object(
+--       'user_id',          tl.user_id::text,
+--       'chat_id',          tl.telegram_user_id,
+--       'reminder_type',    rs.reminder_type
+--     )::text
+--   )
+--   FROM reminder_settings rs
+--   JOIN telegram_links tl ON tl.user_id = rs.user_id
+--   WHERE rs.enabled = true
+--     AND rs.time_hhmm = TO_CHAR(NOW() AT TIME ZONE 'Asia/Taipei', 'HH24:MI')
+--   $$
+-- );

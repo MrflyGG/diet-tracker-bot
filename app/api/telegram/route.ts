@@ -1,4 +1,4 @@
-// v1.1.0 | 2026-09-30 | Phase 3: AI food analysis (photo + text)
+// v1.2.0 | 2026-09-30 | add today's summary query handler
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -9,8 +9,16 @@ const MEAL_LABELS: Record<string, string> = {
   breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '下午點心', midnight: '宵夜',
 }
 
+const MEAL_ICONS: Record<string, string> = {
+  breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍵', midnight: '🌃',
+}
+
 function getTodayInTaipei(): string {
   return new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10)
+}
+
+function isQuery(text: string): boolean {
+  return /多少|總共|統計|查詢|今天吃|紀錄|記錄了|熱量.*今|今.*熱量|吃了什麼|summary|total/i.test(text)
 }
 
 export async function POST(req: NextRequest) {
@@ -116,6 +124,46 @@ export async function POST(req: NextRequest) {
   }
 
   const userId = link.user_id
+  const today = getTodayInTaipei()
+
+  // 查詢今日累計
+  if (text && isQuery(text) && !photo) {
+    const { data: entries } = await supabase
+      .from('food_entries')
+      .select('meal_type, food_name, calories, protein_g, carbs_g, fat_g')
+      .eq('user_id', userId)
+      .eq('log_date', today)
+      .order('created_at')
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('daily_calories, daily_protein_g')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (!entries || entries.length === 0) {
+      await sendMessage(chatId, `📊 今天（${today}）還沒有飲食紀錄。\n\n傳食物照片或文字開始記錄吧！`)
+      return NextResponse.json({ ok: true })
+    }
+
+    const totalCal = Math.round(entries.reduce((s, e) => s + (e.calories ?? 0), 0))
+    const totalPro = Math.round(entries.reduce((s, e) => s + (e.protein_g ?? 0), 0))
+    const totalCarb = Math.round(entries.reduce((s, e) => s + (e.carbs_g ?? 0), 0))
+    const totalFat = Math.round(entries.reduce((s, e) => s + (e.fat_g ?? 0), 0))
+    const targetCal = profile?.daily_calories ?? 2000
+    const targetPro = profile?.daily_protein_g ?? 60
+    const calPct = Math.round((totalCal / targetCal) * 100)
+    const proPct = Math.round((totalPro / targetPro) * 100)
+
+    const lines = entries.map(e =>
+      `${MEAL_ICONS[e.meal_type ?? ''] ?? '🍽'} ${MEAL_LABELS[e.meal_type ?? ''] ?? ''} ${e.food_name} — ${Math.round(e.calories ?? 0)} kcal`
+    )
+
+    const reply = `📊 <b>今日飲食紀錄（${today}）</b>\n\n${lines.join('\n')}\n\n📈 <b>今日累計</b>\n熱量：${totalCal} / ${targetCal} kcal（${calPct}%）\n蛋白質：${totalPro}g / ${targetPro}g（${proPct}%）\n碳水：${totalCarb}g｜脂肪：${totalFat}g`
+
+    await sendMessage(chatId, reply)
+    return NextResponse.json({ ok: true })
+  }
 
   // 食物分析（照片或文字）
   try {
@@ -127,7 +175,6 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     // 今日累計
-    const today = getTodayInTaipei()
     const { data: todayEntries } = await supabase
       .from('food_entries')
       .select('calories, protein_g')

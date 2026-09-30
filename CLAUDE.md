@@ -82,8 +82,8 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 | 0 | 骨架 + GitHub + Vercel 首次部署 | ✅ |
 | 1 | Email 登入 + Web 設定頁 + DB schema | ✅ |
 | 2 | Telegram Bot 串通 + 帳號綁定 | ✅ |
-| 3 | Claude AI 串接（辨識 + 建議）| 待開始 |
-| 4 | 提醒系統（Upstash QStash）| 待開始 |
+| 3 | Claude AI 串接（食物/運動分析 + 喝水/體重/餐別修正）| ✅ |
+| 4 | 提醒系統（Supabase pg_cron + pg_net）| ✅ |
 | 5 | 每日總結 + InBody 解讀 | 待開始 |
 
 ## 核心邏輯
@@ -132,5 +132,5 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 
 ## 當前狀態
 
-- 正在做：Phase 2 完成，等使用者完成真實 Telegram 帳號綁定驗收
-- 下一步：Phase 3 — Claude AI 串接（食物辨識 + 下一餐建議）
+- 正在做：Phase 3 & 4 完成，等實機測試驗收
+- 下一步：Phase 5 — 每日總結、睡眠記錄、InBody 解讀；或 Web 儀表板

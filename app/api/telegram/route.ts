@@ -1,4 +1,4 @@
-// v1.5.0 | 2026-09-30 | add InBody photo analysis branch
+// v1.5.1 | 2026-10-01 | friendly fallback for unrecognized messages
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -468,7 +468,7 @@ export async function POST(req: NextRequest) {
     } else if (msg.includes('429') || msg.includes('rate_limit')) {
       await sendMessage(chatId, '⚠️ 請求太頻繁，請稍後再試。')
     } else {
-      await sendMessage(chatId, `⚠️ 發生錯誤，請稍後重試。\n\n${msg}`)
+      await sendMessage(chatId, '🤔 看不太懂這句話，請傳食物照片或描述食物內容。\n\n例如：「滷肉飯一碗」、「雞胸肉 150g + 花椰菜」\n\n/help 查看所有功能')
     }
   }
 

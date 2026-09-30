@@ -1,4 +1,4 @@
-// v1.3.0 | 2026-09-30 | add InBody photo analysis
+// v1.4.0 | 2026-10-01 | exercise detection for structured training logs + full session analysis
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -118,17 +118,24 @@ export interface ExerciseAnalysis {
 }
 
 export function isExerciseEntry(text: string): boolean {
-  return /跑步|慢跑|快走|健身|重訓|游泳|騎車|騎腳踏車|瑜伽|有氧|HIIT|球|爬山|走路\d|散步\d|運動了|去健身|做了.*運動|練.*分鐘|訓練.*分鐘/.test(text)
+  return /跑步|慢跑|快走|健身|重訓|游泳|騎車|騎腳踏車|瑜伽|有氧|HIIT|球|爬山|走路\d|散步\d|運動了|去健身|做了.*運動|練.*分鐘|訓練.*分鐘|泰拳|硬舉|臥推|深蹲|划船|分腿蹲|弓步|肌力|訓練目標|🏋|🤸/.test(text)
 }
 
 export async function analyzeExercise(text: string, userCtx: UserContext): Promise<ExerciseAnalysis> {
-  const system = `你是運動分析 AI。根據用戶描述估算運動消耗熱量。
+  const system = `你是運動分析 AI。根據用戶描述（單一運動或完整訓練日誌）估算運動消耗熱量。
 
 用戶資料：性別 ${userCtx.gender ?? '未知'}、${userCtx.age ?? '?'}歲
 體重估算：${userCtx.height_cm ? Math.round((userCtx.height_cm - 100) * 0.9) : 70} kg
 
-intensity 定義：light=散步/伸展、moderate=快走/慢跑/游泳、hard=跑步/重訓/球類、very_hard=HIIT/競技
-若訊息未說明時間，預設 30 分鐘。
+intensity 定義：light=散步/伸展、moderate=快走/慢跑/游泳、hard=跑步/重訓/球類/泰拳、very_hard=HIIT/競技
+
+若輸入是完整訓練日誌（含多個動作）：
+- exercise_name 用簡短描述整場訓練，例如「重訓（肌力+爆發）」或「泰拳課」
+- duration_min 估算含熱身收操的整體時間
+- intensity 以主要訓練強度為準
+- calories_burned 估算整場總消耗
+
+若訊息未說明時間，預設 60 分鐘（完整訓練日誌）或 30 分鐘（單一運動）。
 
 以純 JSON 回覆，不加 markdown：
 {"exercise_name":"運動名稱","duration_min":數字,"intensity":"light|moderate|hard|very_hard","calories_burned":數字}

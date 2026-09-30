@@ -7,10 +7,11 @@ export default async function SettingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: reminders }, { data: telegramLink }] = await Promise.all([
+  const [{ data: profile }, { data: reminders }, { data: telegramLink }, { data: latestInBody }] = await Promise.all([
     supabase.from('user_profiles').select('*').eq('id', user.id).single(),
     supabase.from('reminder_settings').select('*').eq('user_id', user.id),
     supabase.from('telegram_links').select('telegram_username').eq('user_id', user.id).maybeSingle(),
+    supabase.from('inbody_records').select('*').eq('user_id', user.id).order('log_date', { ascending: false }).limit(1).maybeSingle(),
   ])
 
   return (
@@ -19,6 +20,7 @@ export default async function SettingsPage() {
       profile={profile}
       reminders={reminders ?? []}
       telegramLink={telegramLink}
+      latestInBody={latestInBody}
     />
   )
 }

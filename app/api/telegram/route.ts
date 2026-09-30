@@ -1,4 +1,4 @@
-// v1.4.0 | 2026-09-30 | add weight / exercise / meal-correction / water in query
+// v1.5.0 | 2026-09-30 | add InBody photo analysis branch
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -8,7 +8,9 @@ import {
   isWeightEntry, extractWeightKg,
   isExerciseEntry, analyzeExercise,
   isMealCorrection, extractMealTypeFromCorrection,
+  isInBodyPhoto, analyzeInBody,
 } from '@/lib/claude'
+import { calcDailyGoals } from '@/lib/nutrition'
 
 const MEAL_LABELS: Record<string, string> = {
   breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '下午點心', midnight: '宵夜',
@@ -306,6 +308,72 @@ export async function POST(req: NextRequest) {
       } else {
         await sendMessage(chatId, `⚠️ 運動記錄失敗，請稍後再試。`)
       }
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  // InBody 照片分析
+  if (photo && isInBodyPhoto(text || caption)) {
+    try {
+      const largest = photo[photo.length - 1]
+      const fileUrl = await getFileUrl(largest.file_id)
+      const imgRes = await fetch(fileUrl)
+      const buf = await imgRes.arrayBuffer()
+      const imageBase64 = Buffer.from(buf).toString('base64')
+
+      const ib = await analyzeInBody(imageBase64)
+
+      const { error: dbErr } = await supabase.from('inbody_records').insert({
+        user_id: userId,
+        log_date: today,
+        weight_kg: ib.weight_kg,
+        muscle_kg: ib.muscle_kg,
+        fat_kg: ib.fat_kg,
+        pbf: ib.pbf,
+        bmi: ib.bmi,
+        bmr: ib.bmr,
+        visceral_fat_level: ib.visceral_fat_level,
+        score: ib.score,
+        water_kg: ib.water_kg,
+        lean_mass_kg: ib.lean_mass_kg,
+        protein_kg: ib.protein_kg,
+        bone_mineral_kg: ib.bone_mineral_kg,
+        whr: ib.whr,
+      })
+
+      if (dbErr) throw new Error(dbErr.message)
+
+      // 若有目標設定，自動重算每日建議
+      const { data: profile } = await supabase
+        .from('user_profiles').select('goal_fat_loss_kg, goal_deadline').eq('id', userId).maybeSingle()
+
+      let goalLine = ''
+      if (profile?.goal_fat_loss_kg && profile?.goal_deadline && ib.lean_mass_kg && ib.bmr) {
+        const goals = calcDailyGoals(ib.bmr, ib.lean_mass_kg, profile.goal_fat_loss_kg, profile.goal_deadline)
+        await supabase.from('user_profiles').update({
+          daily_calories: goals.daily_calories,
+          daily_protein_g: goals.daily_protein_g,
+          daily_carbs_g: goals.daily_carbs_g,
+          daily_fat_g: goals.daily_fat_g,
+          daily_water_ml: goals.daily_water_ml,
+        }).eq('id', userId)
+        goalLine = `\n\n🎯 <b>每日目標已更新</b>\n熱量：${goals.daily_calories} kcal\n蛋白質：${goals.daily_protein_g}g｜碳水：${goals.daily_carbs_g}g｜脂肪：${goals.daily_fat_g}g\n💧 喝水：${goals.daily_water_ml} ml\n（每日需減少 ${goals.daily_deficit} kcal，還有 ${goals.days_left} 天）`
+      }
+
+      const reply = `📊 <b>InBody 記錄成功！</b>
+
+⚖️ 體重：${ib.weight_kg} kg
+💪 肌肉：${ib.muscle_kg} kg
+🏃 體脂：${ib.fat_kg} kg（${ib.pbf}%）
+🔥 基礎代謝：${ib.bmr} kcal
+📈 BMI：${ib.bmi}｜內臟脂肪：${ib.visceral_fat_level}
+🏅 健身評分：${ib.score} 分${goalLine}`
+
+      await sendMessage(chatId, reply)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[AI] analyzeInBody error:', msg)
+      await sendMessage(chatId, '⚠️ InBody 報告解讀失敗，請確認照片清晰完整，或重新傳送。')
     }
     return NextResponse.json({ ok: true })
   }

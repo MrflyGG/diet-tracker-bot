@@ -1,4 +1,4 @@
-// v1.2.0 | 2026-09-30 | add exercise analysis + weight/exercise/correction detectors
+// v1.3.0 | 2026-09-30 | add InBody photo analysis
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -182,6 +182,58 @@ export function extractMealTypeFromCorrection(text: string): string | null {
   if (/點心|下午茶/.test(text)) return 'snack'
   if (/宵夜/.test(text)) return 'midnight'
   return null
+}
+
+// ─── InBody ──────────────────────────────────────────────────────────────────
+
+export interface InBodyAnalysis {
+  weight_kg: number
+  muscle_kg: number
+  fat_kg: number
+  pbf: number
+  bmi: number
+  bmr: number
+  visceral_fat_level: number
+  score: number
+  water_kg: number | null
+  lean_mass_kg: number | null
+  protein_kg: number | null
+  bone_mineral_kg: number | null
+  whr: number | null
+}
+
+export function isInBodyPhoto(text: string): boolean {
+  return /inbody|身體組成|體組成|量測報告/i.test(text)
+}
+
+export async function analyzeInBody(imageBase64: string): Promise<InBodyAnalysis> {
+  const system = `你是 InBody 報告解讀 AI。從照片中讀取 InBody 量測報告數值。
+
+以純 JSON 回覆（不加 markdown）：
+{"weight_kg":數字,"muscle_kg":數字,"fat_kg":數字,"pbf":數字,"bmi":數字,"bmr":數字,"visceral_fat_level":數字,"score":數字,"water_kg":數字或null,"lean_mass_kg":數字或null,"protein_kg":數字或null,"bone_mineral_kg":數字或null,"whr":數字或null}
+
+- 所有數值為數字型別（整數或小數）
+- 看不清楚的欄位填 null
+- 不要加任何說明文字`
+
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 256,
+    system,
+    messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } }] }],
+  })
+
+  const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+  const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(jsonStr)
+  } catch {
+    console.error('[AI] Non-JSON InBody response:', raw.slice(0, 200))
+    throw new Error('無法解讀 InBody 報告')
+  }
+  return parsed as unknown as InBodyAnalysis
 }
 
 // ─── Water ───────────────────────────────────────────────────────────────────

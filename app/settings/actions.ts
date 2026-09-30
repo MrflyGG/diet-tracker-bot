@@ -20,6 +20,8 @@ export async function saveProfile(formData: FormData) {
     daily_fat_g: formData.get('daily_fat_g') ? Number(formData.get('daily_fat_g')) : null,
     daily_fiber_g: formData.get('daily_fiber_g') ? Number(formData.get('daily_fiber_g')) : null,
     daily_water_ml: formData.get('daily_water_ml') ? Number(formData.get('daily_water_ml')) : 2000,
+    goal_fat_loss_kg: formData.get('goal_fat_loss_kg') ? Number(formData.get('goal_fat_loss_kg')) : null,
+    goal_deadline: formData.get('goal_deadline') || null,
     timezone: 'Asia/Taipei',
     updated_at: new Date().toISOString(),
   }

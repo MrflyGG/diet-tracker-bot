@@ -1,4 +1,4 @@
-// v1.0.1 | 2026-09-30 | strip markdown code fences before JSON.parse
+// v1.0.2 | 2026-09-30 | fix: text-only input must return JSON, no photo required
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -58,16 +58,20 @@ export async function analyzeFood(
   const goal = GOAL_LABELS[userCtx.goal ?? ''] ?? '維持體重'
   const mealType = detectMealType()
 
-  const system = `你是專業營養師 AI。根據用戶傳來的食物照片或文字，估算營養成分並給建議。
+  const system = `你是專業營養師 AI，負責幫用戶記錄飲食並估算營養成分。
+
+【重要規則】
+1. 輸入可以是照片、文字描述、或兩者兼有——純文字描述完全足夠，不需要照片
+2. 若用戶描述多種食物，合併成一筆，nutrition 加總計算
+3. 必須永遠以純 JSON 回覆，不加任何說明文字或 markdown
+4. 只有在完全無法判斷是什麼食物時，才回覆 {"error":"請描述得更具體"}
 
 用戶資料：性別 ${userCtx.gender ?? '未知'}、${userCtx.age ?? '?'}歲、身高 ${userCtx.height_cm ?? '?'} cm、目標：${goal}
 每日目標：熱量 ${userCtx.daily_calories ?? 2000} kcal、蛋白質 ${userCtx.daily_protein_g ?? 60}g
 今日已累計：熱量 ${Math.round(today.calories)} kcal、蛋白質 ${Math.round(today.protein_g)}g
 
-以 JSON 格式回覆，不含其他文字：
-{"food_name":"食物名稱","quantity_desc":"份量（例如：約200g、1碗）","calories":數字,"protein_g":數字,"carbs_g":數字,"fat_g":數字,"fiber_g":數字,"tip":"針對用戶目標的一句建議（40字以內）"}
-
-無法辨識時回覆：{"error":"無法辨識"}`
+回覆格式（純 JSON，不加 markdown）：
+{"food_name":"食物名稱","quantity_desc":"份量（例如：約200g、1碗）","calories":數字,"protein_g":數字,"carbs_g":數字,"fat_g":數字,"fiber_g":數字,"tip":"針對用戶目標的一句建議（40字以內）"}`
 
   const content: Anthropic.MessageParam['content'] = []
 
@@ -90,9 +94,16 @@ export async function analyzeFood(
 
   const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
   const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  const parsed = JSON.parse(jsonStr)
 
-  if (parsed.error) throw new Error(parsed.error)
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(jsonStr)
+  } catch {
+    console.error('[AI] Non-JSON response:', raw.slice(0, 200))
+    throw new Error('無法辨識')
+  }
 
-  return { ...parsed, meal_type: mealType }
+  if (parsed.error) throw new Error(String(parsed.error))
+
+  return { ...parsed, meal_type: mealType } as FoodAnalysis
 }

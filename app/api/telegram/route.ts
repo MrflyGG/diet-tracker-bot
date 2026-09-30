@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
   if (text === '/help') {
     await sendMessage(
       chatId,
-      '📋 <b>使用說明</b>\n\n🍱 <b>記錄飲食</b>\n直接傳食物照片，或輸入文字\n例如：「滷肉飯一碗」、「雞胸肉 150g + 花椰菜」\n\n/help — 顯示此說明\n\n🚧 即將推出：運動記錄、喝水追蹤、提醒設定',
+      '📋 <b>使用說明</b>\n\n🍱 <b>記錄飲食</b>\n直接傳食物照片，或輸入文字\n例如：「滷肉飯一碗」、「雞胸肉 150g + 花椰菜」\n\n💧 <b>記錄喝水</b>\n例如：「喝水 500ml」、「喝了兩杯水」\n\n📊 <b>查詢今日</b>\n輸入「今天吃了多少」或「統計」\n\n⚙️ <b>個人設定</b>（提醒時間、每日目標）\nhttps://diet-tracker-bot-nine.vercel.app/settings\n\n/help — 顯示此說明',
     )
     return NextResponse.json({ ok: true })
   }

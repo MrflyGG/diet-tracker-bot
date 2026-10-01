@@ -1,4 +1,4 @@
-// v1.5.0 | 2026-10-01 | nutrition question detection + consult mode
+// v1.5.1 | 2026-10-01 | fix tip to focus on food quality, not remaining budget
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -71,7 +71,7 @@ export async function analyzeFood(
 今日已累計：熱量 ${Math.round(today.calories)} kcal、蛋白質 ${Math.round(today.protein_g)}g
 
 回覆格式（純 JSON，不加 markdown）：
-{"food_name":"食物名稱","quantity_desc":"份量（例如：約200g、1碗）","calories":數字,"protein_g":數字,"carbs_g":數字,"fat_g":數字,"fiber_g":數字,"tip":"針對用戶目標的一句建議（40字以內）"}`
+{"food_name":"食物名稱","quantity_desc":"份量（例如：約200g、1碗）","calories":數字,"protein_g":數字,"carbs_g":數字,"fat_g":數字,"fiber_g":數字,"tip":"針對這餐食物本身的營養評語或改善建議（40字以內），不提剩餘熱量預算"}`
 
   const content: Anthropic.MessageParam['content'] = []
 

@@ -1,4 +1,4 @@
-// v1.5.2 | 2026-10-01 | show carbs/fat % in daily query
+// v1.5.3 | 2026-10-01 | remove cup unit from water log
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -203,9 +203,8 @@ export async function POST(req: NextRequest) {
         .eq('log_date', today)
 
       const totalMl = (waterRows?.reduce((s, r) => s + (r.amount_ml ?? 0), 0) ?? 0)
-      const cups = Math.round(totalMl / 250)
 
-      await sendMessage(chatId, `💧 喝水記錄成功！+${ml} ml\n\n今日累計：${totalMl} ml（約 ${cups} 杯）\n\n建議每日飲水 2000ml 以上。`)
+      await sendMessage(chatId, `💧 喝水記錄成功！+${ml} ml\n\n今日累計：${totalMl} ml\n\n建議每日飲水 2000ml 以上。`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[DB] water_entries insert error:', msg)

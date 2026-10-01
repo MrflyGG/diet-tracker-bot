@@ -37,36 +37,38 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 ├── app/
 │   ├── layout.tsx
 │   ├── page.tsx               ← 首頁（導向登入或設定）
-│   ├── login/page.tsx
+│   ├── login/page.tsx         ← Email + 密碼登入（非 magic link）
 │   ├── settings/
-│   │   ├── page.tsx           ← 個人資料、目標、提醒時間
-│   │   ├── SettingsForm.tsx   ← 含 Telegram 綁定 UI
+│   │   ├── page.tsx           ← 個人資料、目標、提醒時間、InBody 卡片
+│   │   ├── SettingsForm.tsx   ← 含 Telegram 綁定 UI、AI 計算目標按鈕
 │   │   └── actions.ts         ← saveProfile / saveReminders / createBindToken
 │   └── api/
-│       ├── telegram/route.ts  ← Telegram Webhook（POST only）
+│       ├── telegram/route.ts  ← Telegram Webhook（v1.5.3）
 │       ├── auth/callback/route.ts
-│       └── cron/route.ts      ← Upstash QStash 觸發點（待實作）
+│       └── cron/route.ts      ← Upstash QStash 觸發點
 ├── lib/
 │   ├── supabase/
-│   │   ├── client.ts          ← 瀏覽器端 client
-│   │   ├── server.ts          ← Server Component client
+│   │   ├── client.ts
+│   │   ├── server.ts
 │   │   └── admin.ts           ← Service role client（bypass RLS）
-│   └── telegram.ts            ← sendMessage / setWebhook
+│   ├── telegram.ts            ← sendMessage / setWebhook
+│   ├── claude.ts              ← AI 分析（v1.4.0）
+│   └── nutrition.ts           ← calcDailyGoals()（純數學）
 ├── supabase/
 │   └── migrations/
-│       ├── 001_init.sql       ← 7 張主表 + RLS
-│       └── 002_bind_tokens.sql ← telegram_bind_tokens
+│       ├── 001_initial.sql    ← 7 張主表 + RLS
+│       ├── 002_bind_tokens.sql
+│       ├── 003_cron_reminders.sql
+│       └── 004_inbody.sql     ← inbody_records + user_profiles 新欄位
 └── docs/
     └── SCHEMA.md
 ```
 
-## 資料庫 Schema（7 張主表 + 1 輔助表）
-
-詳見 `docs/SCHEMA.md`。
+## 資料庫 Schema
 
 | Table | 說明 |
 |---|---|
-| `user_profiles` | 個人資料、每日目標 |
+| `user_profiles` | 個人資料、每日目標（含 goal_fat_loss_kg / goal_deadline / daily_water_ml）|
 | `telegram_links` | Telegram ID ↔ 帳號綁定 |
 | `telegram_bind_tokens` | 綁定暫存 token（15 分鐘 TTL）|
 | `reminder_settings` | 每種提醒的時間與開關 |
@@ -74,6 +76,7 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 | `food_entries` | 每筆飲食記錄 |
 | `exercise_entries` | 每筆運動記錄 |
 | `water_entries` | 每筆喝水記錄 |
+| `inbody_records` | InBody 量測記錄（migration 004）|
 
 ## 開發階段
 
@@ -85,6 +88,16 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 | 3 | Claude AI 串接（食物/運動分析 + 喝水/體重/餐別修正）| ✅ |
 | 4 | 提醒系統（Supabase pg_cron + pg_net）| ✅ |
 | 5 | 每日總結 + InBody 解讀 | 待開始 |
+
+### Phase 3–4 後補功能（2026-10-01）
+
+| 功能 | 說明 |
+|---|---|
+| 結構化訓練日誌分析 | 教練日誌格式（硬舉/臥推/泰拳等）→ AI 估算整場消耗 |
+| InBody 資料建表 | migration 004，inbody_records + user_profiles 三個新欄位 |
+| 設定頁 AI 計算目標 | calcDailyGoals() 根據 BMR + 除脂體重 + 目標計算每日建議 |
+| 查詢顯示碳水/脂肪% | 每次查詢顯示四大營養素達成率 |
+| 未知訊息友善回覆 | 不再顯示「發生錯誤」，改為引導說明 |
 
 ## 核心邏輯
 
@@ -120,17 +133,21 @@ AI（Claude Haiku 4.5）分析食物照片與文字，給出營養估算與下�
 | Upstash QStash 排程 | Vercel Hobby 只有 1 個 Cron slot | Vercel Cron |
 | 共用 API Key | 個人用量免費額度夠 | BYOK |
 | middleware 排除 /api/ | Telegram webhook 是 server-to-server，無 session cookie | 個別路由加驗證 |
+| Email+密碼登入 | iOS Telegram in-app browser 跨 app 無法取得 magic link session | magic link |
+| inbody_records 無 FK constraint | Supabase SQL Editor 無法驗證跨 schema auth.users FK；RLS 已保護 | REFERENCES auth.users |
 
 ## 已知地雷 ⚠️
 
 - **middleware 必須排除 `/api/`**：Telegram webhook 沒有 session cookie，若 middleware 攔截會永遠 307 到 `/login`，綁定靜默失敗
 - **Vercel 域名**：deploy 後實際域名是 `diet-tracker-bot-nine.vercel.app`，非 `diet-tracker-bot.vercel.app`（後者 404）
 - **Vercel Hobby cron** 只有 1 個 slot，提醒系統必須走 Upstash QStash
+- **Supabase SQL Editor 跨 schema FK**：`REFERENCES auth.users(id)` 在 SQL Editor 執行 INSERT 時會報 FK 錯誤，即使 user 確實存在。解法：DROP FK，改用 RLS 保護
+- **InBody 照片未加 caption 會被誤判為食物**：`isInBodyPhoto()` 靠 caption/text 關鍵字判斷，照片必須附上「inbody」字樣才會走 InBody 流程
 - 凌晨訊息需確認是否跨日
 - Telegram Webhook 需要 HTTPS，本機開發用 ngrok
 - Supabase `telegram_links` upsert 衝突鍵是 `telegram_user_id`，同一 Telegram 帳號重新綁定會覆蓋舊的 `user_id`
 
 ## 當前狀態
 
-- 正在做：Phase 3 & 4 完成，等實機測試驗收
-- 下一步：Phase 5 — 每日總結、睡眠記錄、InBody 解讀；或 Web 儀表板
+- 正在做：Phase 3 & 4 + 補強功能完成，實機測試通過
+- 下一步：Phase 5 — 每日總結、睡眠記錄、InBody 趨勢圖；或 Web 儀表板

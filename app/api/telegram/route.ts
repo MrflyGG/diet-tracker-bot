@@ -1,4 +1,4 @@
-// v1.5.1 | 2026-10-01 | friendly fallback for unrecognized messages
+// v1.5.2 | 2026-10-01 | show carbs/fat % in daily query
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
       supabase.from('water_entries')
         .select('amount_ml').eq('user_id', userId).eq('log_date', today),
       supabase.from('user_profiles')
-        .select('daily_calories, daily_protein_g, daily_water_ml').eq('id', userId).maybeSingle(),
+        .select('daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g, daily_water_ml').eq('id', userId).maybeSingle(),
     ])
 
     const totalWater = waterRows?.reduce((s, r) => s + (r.amount_ml ?? 0), 0) ?? 0
@@ -159,16 +159,20 @@ export async function POST(req: NextRequest) {
     const totalFat = Math.round(entries.reduce((s, e) => s + (e.fat_g ?? 0), 0))
     const targetCal = profile?.daily_calories ?? 2000
     const targetPro = profile?.daily_protein_g ?? 60
+    const targetCarb = profile?.daily_carbs_g ?? 250
+    const targetFat = profile?.daily_fat_g ?? 55
     const targetWater = profile?.daily_water_ml ?? 2000
     const calPct = Math.round((totalCal / targetCal) * 100)
     const proPct = Math.round((totalPro / targetPro) * 100)
+    const carbPct = Math.round((totalCarb / targetCarb) * 100)
+    const fatPct = Math.round((totalFat / targetFat) * 100)
     const waterPct = Math.round((totalWater / targetWater) * 100)
 
     const lines = entries.map(e =>
       `${MEAL_ICONS[e.meal_type ?? ''] ?? '🍽'} ${MEAL_LABELS[e.meal_type ?? ''] ?? ''} ${e.food_name} — ${Math.round(e.calories ?? 0)} kcal`
     )
 
-    const reply = `📊 <b>今日飲食紀錄（${today}）</b>\n\n${lines.join('\n')}\n\n📈 <b>今日累計</b>\n熱量：${totalCal} / ${targetCal} kcal（${calPct}%）\n蛋白質：${totalPro}g / ${targetPro}g（${proPct}%）\n碳水：${totalCarb}g｜脂肪：${totalFat}g\n💧 喝水：${totalWater} / ${targetWater} ml（${waterPct}%）`
+    const reply = `📊 <b>今日飲食紀錄（${today}）</b>\n\n${lines.join('\n')}\n\n📈 <b>今日累計</b>\n熱量：${totalCal} / ${targetCal} kcal（${calPct}%）\n蛋白質：${totalPro}g / ${targetPro}g（${proPct}%）\n碳水：${totalCarb}g / ${targetCarb}g（${carbPct}%）\n脂肪：${totalFat}g / ${targetFat}g（${fatPct}%）\n💧 喝水：${totalWater} / ${targetWater} ml（${waterPct}%）`
 
     await sendMessage(chatId, reply)
     return NextResponse.json({ ok: true })

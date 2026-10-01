@@ -1,4 +1,4 @@
-// v1.4.0 | 2026-10-01 | exercise detection for structured training logs + full session analysis
+// v1.5.0 | 2026-10-01 | nutrition question detection + consult mode
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -241,6 +241,45 @@ export async function analyzeInBody(imageBase64: string): Promise<InBodyAnalysis
     throw new Error('無法解讀 InBody 報告')
   }
   return parsed as unknown as InBodyAnalysis
+}
+
+// ─── Nutrition question (consult mode) ───────────────────────────────────────
+
+export function isNutritionQuestion(text: string): boolean {
+  const t = text.trim()
+  return /[嗎呢？]$/.test(t) ||
+    /^(可以|能不能|要不要|需要|應該|建議|怎麼|幾點|什麼時候|今天還能|還可以|能吃|能喝|適合)/.test(t)
+}
+
+interface TodayContext {
+  calories: number
+  protein_g: number
+  water_ml: number
+}
+
+export async function answerNutritionQuestion(
+  question: string,
+  userCtx: UserContext,
+  today: TodayContext
+): Promise<string> {
+  const goal = GOAL_LABELS[userCtx.goal ?? ''] ?? '維持體重'
+
+  const system = `你是專業營養師 AI，幫用戶回答飲食與健康相關問題。
+
+用戶資料：性別 ${userCtx.gender ?? '未知'}、${userCtx.age ?? '?'}歲、身高 ${userCtx.height_cm ?? '?'} cm、目標：${goal}
+每日目標：熱量 ${userCtx.daily_calories ?? 2000} kcal、蛋白質 ${userCtx.daily_protein_g ?? 60}g
+今日已累計：熱量 ${Math.round(today.calories)} kcal、蛋白質 ${Math.round(today.protein_g)}g、喝水 ${today.water_ml} ml
+
+只回答問題，不記錄任何食物。回覆簡潔（60字以內），針對用戶目標給出具體建議。`
+
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 256,
+    system,
+    messages: [{ role: 'user', content: question }],
+  })
+
+  return response.content[0].type === 'text' ? response.content[0].text.trim() : '抱歉，無法回答這個問題。'
 }
 
 // ─── Water ───────────────────────────────────────────────────────────────────

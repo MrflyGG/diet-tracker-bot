@@ -1,4 +1,4 @@
-// v1.5.3 | 2026-10-01 | remove cup unit from water log
+// v1.5.4 | 2026-10-01 | consult mode: question detection without recording
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -9,6 +9,7 @@ import {
   isExerciseEntry, analyzeExercise,
   isMealCorrection, extractMealTypeFromCorrection,
   isInBodyPhoto, analyzeInBody,
+  isNutritionQuestion, answerNutritionQuestion,
 } from '@/lib/claude'
 import { calcDailyGoals } from '@/lib/nutrition'
 
@@ -175,6 +176,33 @@ export async function POST(req: NextRequest) {
     const reply = `📊 <b>今日飲食紀錄（${today}）</b>\n\n${lines.join('\n')}\n\n📈 <b>今日累計</b>\n熱量：${totalCal} / ${targetCal} kcal（${calPct}%）\n蛋白質：${totalPro}g / ${targetPro}g（${proPct}%）\n碳水：${totalCarb}g / ${targetCarb}g（${carbPct}%）\n脂肪：${totalFat}g / ${targetFat}g（${fatPct}%）\n💧 喝水：${totalWater} / ${targetWater} ml（${waterPct}%）`
 
     await sendMessage(chatId, reply)
+    return NextResponse.json({ ok: true })
+  }
+
+  // 營養諮詢（問句偵測，不記錄）
+  if (text && isNutritionQuestion(text) && !photo) {
+    try {
+      const [{ data: profile }, { data: todayEntries }, { data: waterRows }] = await Promise.all([
+        supabase.from('user_profiles')
+          .select('gender, age, height_cm, goal, daily_calories, daily_protein_g')
+          .eq('id', userId).maybeSingle(),
+        supabase.from('food_entries')
+          .select('calories, protein_g').eq('user_id', userId).eq('log_date', today),
+        supabase.from('water_entries')
+          .select('amount_ml').eq('user_id', userId).eq('log_date', today),
+      ])
+
+      const todayCtx = {
+        calories: todayEntries?.reduce((s, e) => s + (e.calories ?? 0), 0) ?? 0,
+        protein_g: todayEntries?.reduce((s, e) => s + (e.protein_g ?? 0), 0) ?? 0,
+        water_ml: waterRows?.reduce((s, r) => s + (r.amount_ml ?? 0), 0) ?? 0,
+      }
+
+      const answer = await answerNutritionQuestion(text, profile ?? {}, todayCtx)
+      await sendMessage(chatId, `💬 ${answer}\n\n（若要記錄，請直接描述食物，例如「喝了高蛋白 500cc」）`)
+    } catch {
+      await sendMessage(chatId, '🤔 這個問題有點複雜，建議傳食物照片或描述食物讓我記錄！')
+    }
     return NextResponse.json({ ok: true })
   }
 

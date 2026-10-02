@@ -1,4 +1,4 @@
-// v1.5.4 | 2026-10-01 | consult mode: question detection without recording
+// v1.5.5 | 2026-10-02 | sleep tracking: 睡眠630 format
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -10,6 +10,7 @@ import {
   isMealCorrection, extractMealTypeFromCorrection,
   isInBodyPhoto, analyzeInBody,
   isNutritionQuestion, answerNutritionQuestion,
+  isSleepEntry, extractSleepHours,
 } from '@/lib/claude'
 import { calcDailyGoals } from '@/lib/nutrition'
 
@@ -271,6 +272,32 @@ export async function POST(req: NextRequest) {
     }
 
     await sendMessage(chatId, `⚖️ 體重記錄成功！\n\n今日體重：${kg} kg${diffLine}`)
+    return NextResponse.json({ ok: true })
+  }
+
+  // 睡眠記錄
+  if (text && isSleepEntry(text) && !photo) {
+    const hours = extractSleepHours(text)
+    if (!hours || hours < 1 || hours > 16) {
+      await sendMessage(chatId, '😴 請輸入睡眠時數，例如：「睡眠630」= 6 小時 30 分。')
+      return NextResponse.json({ ok: true })
+    }
+
+    const { error: dbErr } = await supabase.from('daily_logs').upsert(
+      { user_id: userId, log_date: today, sleep_hours: hours },
+      { onConflict: 'user_id,log_date' }
+    )
+
+    if (dbErr) {
+      console.error('[DB] daily_logs upsert error:', dbErr.message)
+      await sendMessage(chatId, '⚠️ 睡眠記錄失敗，請稍後再試。')
+      return NextResponse.json({ ok: true })
+    }
+
+    const hh = Math.floor(hours)
+    const mm = Math.round((hours - hh) * 60)
+    const timeStr = mm > 0 ? `${hh} 小時 ${mm} 分` : `${hh} 小時`
+    await sendMessage(chatId, `😴 睡眠記錄成功！\n\n昨晚睡了 ${timeStr}`)
     return NextResponse.json({ ok: true })
   }
 

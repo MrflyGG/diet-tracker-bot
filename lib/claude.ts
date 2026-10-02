@@ -1,4 +1,4 @@
-// v1.5.2 | 2026-10-02 | fix isWaterEntry to catch "水 800" shorthand
+// v1.5.3 | 2026-10-02 | add isSleepEntry / extractSleepHours
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -286,6 +286,25 @@ export async function answerNutritionQuestion(
 
 export function isWaterEntry(text: string): boolean {
   return /喝水|補水|飲水|喝了.{0,10}水|水.{0,5}(ml|毫升|杯|瓶|cc)|(\d+)\s*(ml|毫升).{0,5}水|^水\s*\d+/.test(text)
+}
+
+// ─── Sleep ───────────────────────────────────────────────────────────────────
+
+export function isSleepEntry(text: string): boolean {
+  return /^睡眠\s*\d/.test(text.trim())
+}
+
+export function extractSleepHours(text: string): number | null {
+  const m = text.match(/睡眠\s*(\d+(?:\.\d+)?)/)
+  if (!m) return null
+  const n = parseFloat(m[1])
+  if (isNaN(n)) return null
+  if (n >= 100) {
+    const h = Math.floor(n / 100)
+    const min = Math.round(n % 100)
+    return Math.round((h + min / 60) * 10) / 10
+  }
+  return n
 }
 
 export async function extractWaterMl(text: string): Promise<number> {

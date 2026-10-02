@@ -1,4 +1,4 @@
-// v1.5.1 | 2026-10-01 | fix tip to focus on food quality, not remaining budget
+// v1.5.2 | 2026-10-02 | fix isWaterEntry to catch "水 800" shorthand
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -285,7 +285,7 @@ export async function answerNutritionQuestion(
 // ─── Water ───────────────────────────────────────────────────────────────────
 
 export function isWaterEntry(text: string): boolean {
-  return /喝水|補水|飲水|喝了.{0,10}水|水.{0,5}(ml|毫升|杯|瓶|cc)|(\d+)\s*(ml|毫升).{0,5}水/.test(text)
+  return /喝水|補水|飲水|喝了.{0,10}水|水.{0,5}(ml|毫升|杯|瓶|cc)|(\d+)\s*(ml|毫升).{0,5}水|^水\s*\d+/.test(text)
 }
 
 export async function extractWaterMl(text: string): Promise<number> {

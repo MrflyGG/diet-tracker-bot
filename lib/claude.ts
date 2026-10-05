@@ -1,4 +1,4 @@
-// v1.5.3 | 2026-10-02 | add isSleepEntry / extractSleepHours
+// v1.5.4 | 2026-10-02 | analyzeFood: ignore price numbers in order screenshots
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -65,6 +65,7 @@ export async function analyzeFood(
 2. 若用戶描述多種食物，合併成一筆，nutrition 加總計算
 3. 必須永遠以純 JSON 回覆，不加任何說明文字或 markdown
 4. 只有在完全無法判斷是什麼食物時，才回覆 {"error":"請描述得更具體"}
+5. 若輸入包含訂單截圖或收據，圖中的數字是價格（台幣），絕對不是熱量。請完全忽略這些數字，根據食物名稱與份量自行估算營養
 
 用戶資料：性別 ${userCtx.gender ?? '未知'}、${userCtx.age ?? '?'}歲、身高 ${userCtx.height_cm ?? '?'} cm、目標：${goal}
 每日目標：熱量 ${userCtx.daily_calories ?? 2000} kcal、蛋白質 ${userCtx.daily_protein_g ?? 60}g
